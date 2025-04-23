@@ -1,6 +1,7 @@
 # My Project
 
 This project template is a demonstration for the RepCo workshop.
+This repo is my test repo.
 
 ## Usage
 
