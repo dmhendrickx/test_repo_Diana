@@ -1,0 +1,828 @@
+---
+title: "Linear models for cross-sectional analysis of NO2 exposure"
+format: docx
+editor: visual
+---
+
+# Load packages
+
+```{r loadpackages}
+library(readr) #for using read_delim
+library(car) #for using the function vif
+```
+
+# Import the data
+
+We need the following input matrices:
+
+-   modelmatrix1cr and modelmatrix2cr (for the crude models), with columns
+
+    -   id: subject ID
+
+    -   fev1 or fvc
+
+    -   no2aav: latest annual average for NO2
+
+-   modelmatrix1 and modelmatrix2 (adjusting for age, sex, height and ethnicity), with additional columns
+
+    -   age
+
+    -   sex
+
+    -   height
+
+    -   ethnicity
+
+-   modelmatrix3 and modelmatrix4 (also adjusting for cold or respiratory infection in the past three weeks, atopy parents, education parents, education participant), with additional columns
+
+    -   cold: cold or respiratory infection in the past three weeks
+
+    -   atopyparents: atopy parents
+
+    -   eduparents: education parents
+
+    -   eduparticipant: education participant
+
+-   modelmatrix5 and modelmatrix6 (also adjusting for indoor exposures: active smoking, second hand smoke, mould, pets, gas cooking), with additional columns
+
+    -   activsmoking
+
+    -   shs
+
+    -   mould
+
+    -   pets
+
+    -   gascook
+
+-   modelmatrix7 and modelmatrix8 (also adjusting for urbanicity), with additional columns
+
+    -   urbanicity
+
+```{r importdata}
+modelmatrix1cr <- read_delim("../data/processed/modelmatrix1cr_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix2cr <- read_delim("../data/processed/modelmatrix2cr_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix1 <- read_delim("../data/processed/modelmatrix1_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix2 <- read_delim("../data/processed/modelmatrix2_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix3 <- read_delim("../data/processed/modelmatrix3_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix4 <- read_delim("../data/processed/modelmatrix4_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix5 <- read_delim("../data/processed/modelmatrix5_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix6 <- read_delim("../data/processed/modelmatrix6_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix7 <- read_delim("../data/processed/modelmatrix7_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+
+modelmatrix8 <- read_delim("../data/processed/modelmatrix8_sim.csv", 
+    delim = ";", escape_double = FALSE, col_types = cols(id = col_integer()), 
+     trim_ws = TRUE)
+```
+
+## Crude models
+
+-   Dependent variable: FEV1 or FVC\
+
+-   NO2 as independent variable
+
+Run the models.
+
+```{r runmodelscr}
+set.seed(123)
+model1cr <- lm(fev1 ~ no2aav, data = modelmatrix1cr)
+set.seed(123)
+model2cr <- lm(fvc ~ no2aav, data = modelmatrix2cr)
+```
+
+Model checking\
+We check the following assumptions:\
+- normality of the residuals\
+- linearity of the relationship between predicted and observed values\
+- homogeneity of variance\
+
+```{r diagnostics}
+# check normality of the residuals
+hist(x = residuals(model1cr), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model2cr), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model1cr, which = 2)
+plot(x = model2cr, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat1 <- fitted.values(object = model1cr)
+plot(x = yhat1, y = modelmatrix1cr$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat2 <- fitted.values(object = model2cr)
+plot(x = yhat2, y = modelmatrix2cr$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model1cr, which = 1)
+plot(x = model2cr, which = 1)
+
+# check homogeneity of variance
+plot(x = model1cr, which = 3)
+plot(x = model2cr, which = 3)
+```
+
+Interpretation of the results
+
+```{r summarycr}
+summary(model1cr)
+summary(model2cr)
+```
+
+95% confidence intervals for the regression coefficients.
+
+```{r confint1cr}
+confint1cr <- confint(model1cr)
+print(confint1cr)
+```
+
+```{r confint2cr}
+confint2cr <- confint(model2cr)
+print(confint2cr)
+```
+
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+
+```{r effectiqr}
+#calculate IQR
+iqr_aav<-IQR(modelmatrix1cr$no2aav,na.rm=TRUE)
+print(iqr_aav)
+
+#model1cr
+estimate1cr<-(summary(model1cr)$coefficients[,1])*iqr_aav*100
+lb_confint1cr<-confint1cr[,1]*iqr_aav*100
+ub_confint1cr<-confint1cr[,2]*iqr_aav*100
+results1cr_iqr<-data.frame(estimate_pct=estimate1cr,
+                           lb_CI=lb_confint1cr,
+                           ub_CI=ub_confint1cr)
+print(results1cr_iqr)
+
+#model2cr
+estimate2cr<-(summary(model2cr)$coefficients[,1])*iqr_aav*100
+lb_confint2cr<-confint2cr[,1]*iqr_aav*100
+ub_confint2cr<-confint2cr[,2]*iqr_aav*100
+results2cr_iqr<-data.frame(estimate_pct=estimate2cr,
+                           lb_CI=lb_confint2cr,
+                           ub_CI=ub_confint2cr)
+print(results2cr_iqr)
+```
+
+## Model correcting for age, sex, height and ethnicity
+
+Run the models.
+
+```{r runmodels}
+modelmatrix1$sex <- as.factor(modelmatrix1$sex)
+modelmatrix1$ethnicity <- as.factor(modelmatrix1$ethnicity)
+set.seed(123)
+model1 <- lm(fev1 ~ no2aav + age + sex + height + ethnicity, data = modelmatrix1)
+
+modelmatrix2$sex <- as.factor(modelmatrix2$sex)
+modelmatrix2$ethnicity <- as.factor(modelmatrix2$ethnicity)
+set.seed(123)
+model2 <- lm(fvc ~ no2aav + age + sex + height + ethnicity, data = modelmatrix2)
+```
+
+Model checking\
+We check the following assumptions:\
+- normality of the residuals\
+- linearity of the relationship between predicted and observed values\
+- homogeneity of variance\
+- multicollinearity\
+
+```{r modeldiagnostics}
+# check normality of the residuals
+hist(x = residuals(model1), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model2), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model1, which = 2)
+plot(x = model2, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat1 <- fitted.values(object = model1)
+plot(x = yhat1, y = modelmatrix1$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat2 <- fitted.values(object = model2)
+plot(x = yhat2, y = modelmatrix2$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model1, which = 1)
+plot(x = model2, which = 1)
+
+# check homogeneity of variance
+plot(x = model1, which = 3)
+plot(x = model2, which = 3)
+
+# check for multicollinearity GVIF = square root of the VIF, if > 5 =>
+# multicollinearity Add intercept to model for VIF computation.
+gvif1 <- vif(model1)
+print(gvif1)
+
+gvif2 <- vif(model2)
+print(gvif2)
+```
+
+Interpretation of the results
+
+```{r summary}
+summary(model1)
+summary(model2)
+```
+
+95% confidence intervals for the regression coefficients.
+
+```{r confint1}
+confint1 <- confint(model1)
+print(confint1)
+```
+
+```{r confint2}
+confint2 <- confint(model2)
+print(confint2)
+```
+
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+
+```{r effectpctiqr}
+#model1
+iqr_aav<-IQR(modelmatrix1$no2aav,na.rm=TRUE)
+print(iqr_aav)
+estimate1<-(summary(model1)$coefficients[,1])*iqr_aav*100
+lb_confint1<-confint1[,1]*iqr_aav*100
+ub_confint1<-confint1[,2]*iqr_aav*100
+results1_iqr<-data.frame(estimate_pct=estimate1,
+                           lb_CI=lb_confint1,
+                           ub_CI=ub_confint1)
+print(results1_iqr)
+
+#model2
+estimate2<-(summary(model2)$coefficients[,1])*iqr_aav*100
+lb_confint2<-confint2[,1]*iqr_aav*100
+ub_confint2<-confint2[,2]*iqr_aav*100
+results2_iqr<-data.frame(estimate_pct=estimate2,
+                           lb_CI=lb_confint2,
+                           ub_CI=ub_confint2)
+print(results2_iqr)
+```
+
+## Include other potential confounders into the model.
+
+We also include cold or respiratory infection in the past three weeks, atopy parents, education parents, education participant.
+```{r runmodelsB}
+modelmatrix3$sex <- as.factor(modelmatrix3$sex)
+modelmatrix3$ethnicity <- as.factor(modelmatrix3$ethnicity)
+modelmatrix3$cold <- as.factor(modelmatrix3$cold)
+modelmatrix3$atopyparents<- as.factor(modelmatrix3$atopyparents)
+modelmatrix3$eduparents<- as.factor(modelmatrix3$eduparents)
+modelmatrix3$eduparticipant<- as.factor(modelmatrix3$eduparticipant)
+set.seed(123)
+model3 <- lm(fev1 ~ no2aav + age + sex + height + ethnicity + cold +
+atopyparents + eduparents + eduparticipant, data = modelmatrix3)
+
+modelmatrix4$sex <- as.factor(modelmatrix4$sex)
+modelmatrix4$ethnicity <- as.factor(modelmatrix4$ethnicity)
+modelmatrix4$cold <- as.factor(modelmatrix4$cold)
+modelmatrix4$atopyparents<- as.factor(modelmatrix4$atopyparents)
+modelmatrix4$eduparents<- as.factor(modelmatrix4$eduparents)
+modelmatrix4$eduparticipant<- as.factor(modelmatrix4$eduparticipant)
+set.seed(123)
+model4 <- lm(fvc ~ no2aav + age + sex + height + ethnicity + cold +
+atopyparents + eduparents + eduparticipant, data = modelmatrix4)
+```
+Model checking\
+We check the following assumptions:\
+- normality of the residuals\
+- linearity of the relationship between predicted and observed values\
+- homogeneity of variance\
+- multicollinearity\
+```{r modeldiagnosticsB}
+# check normality of the residuals
+hist(x = residuals(model3), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model4), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model3, which = 2)
+plot(x = model4, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat3 <- fitted.values(object = model3)
+plot(x = yhat3, y = modelmatrix3$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat4 <- fitted.values(object = model4)
+plot(x = yhat4, y = modelmatrix4$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model3, which = 1)
+plot(x = model4, which = 1)
+
+# check homogeneity of variance
+plot(x = model3, which = 3)
+plot(x = model4, which = 3)
+
+# check for multicollinearity GVIF = square root of the VIF, if > 5 =>
+# multicollinearity Add intercept to model for VIF computation.
+gvif3 <- vif(model3)
+print(gvif3)
+
+gvif4 <- vif(model4)
+print(gvif4)
+```
+Interpretation of the results
+```{r summaryB}
+summary(model3)
+summary(model4)
+```
+95% confidence intervals for the regression coefficients.
+```{r confint3}
+confint3 <- confint(model3)
+print(confint3)
+```
+```{r confint4}
+confint4 <- confint(model4)
+print(confint4)
+```
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+```{r effectpctiqrB}
+#model3
+iqr_aav<-IQR(modelmatrix3$no2aav,na.rm=TRUE)
+print(iqr_aav)
+estimate3<-(summary(model3)$coefficients[,1])*iqr_aav*100
+lb_confint3<-confint3[,1]*iqr_aav*100
+ub_confint3<-confint3[,2]*iqr_aav*100
+results3_iqr<-data.frame(estimate_pct=estimate3,
+                           lb_CI=lb_confint3,
+                           ub_CI=ub_confint3)
+print(results3_iqr)
+
+#model4
+estimate4<-(summary(model4)$coefficients[,1])*iqr_aav*100
+lb_confint4<-confint4[,1]*iqr_aav*100
+ub_confint4<-confint4[,2]*iqr_aav*100
+results4_iqr<-data.frame(estimate_pct=estimate4,
+                           lb_CI=lb_confint4,
+                           ub_CI=ub_confint4)
+print(results4_iqr)
+```
+## Include indoor exposures as confounders
+```{r runmodelsC}
+modelmatrix5$sex <- as.factor(modelmatrix5$sex)
+modelmatrix5$ethnicity <- as.factor(modelmatrix5$ethnicity)
+modelmatrix5$cold <- as.factor(modelmatrix5$cold)
+modelmatrix5$atopyparents<- as.factor(modelmatrix5$atopyparents)
+modelmatrix5$eduparents<- as.factor(modelmatrix5$eduparents)
+modelmatrix5$eduparticipant<- as.factor(modelmatrix5$eduparticipant)
+modelmatrix5$activesmoking<- as.factor(modelmatrix5$activesmoking)
+modelmatrix5$shs<- as.factor(modelmatrix5$shs)
+modelmatrix5$mould<- as.factor(modelmatrix5$mould)
+modelmatrix5$pets<- as.factor(modelmatrix5$pets)
+modelmatrix5$gascook<- as.factor(modelmatrix5$gascook)
+set.seed(123)
+model5 <- lm(fev1 ~ no2aav + age + sex + height + ethnicity + cold +
+atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook, data = modelmatrix5)
+
+modelmatrix6$sex <- as.factor(modelmatrix6$sex)
+modelmatrix6$ethnicity <- as.factor(modelmatrix6$ethnicity)
+modelmatrix6$cold <- as.factor(modelmatrix6$cold)
+modelmatrix6$atopyparents<- as.factor(modelmatrix6$atopyparents)
+modelmatrix6$eduparents<- as.factor(modelmatrix6$eduparents)
+modelmatrix6$eduparticipant<- as.factor(modelmatrix6$eduparticipant)
+modelmatrix6$activesmoking<- as.factor(modelmatrix6$activesmoking)
+modelmatrix6$shs<- as.factor(modelmatrix6$shs)
+modelmatrix6$mould<- as.factor(modelmatrix6$mould)
+modelmatrix6$pets<- as.factor(modelmatrix6$pets)
+modelmatrix6$gascook<- as.factor(modelmatrix6$gascook)
+set.seed(123)
+model6 <- lm(fvc ~ no2aav + age + sex + height + ethnicity + cold +
+atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook, data = modelmatrix6)
+```
+Model checking\
+We check the following assumptions:\
+- normality of the residuals\
+- linearity of the relationship between predicted and observed values\
+- homogeneity of variance\
+- multicollinearity\
+```{r modeldiagnosticsC}
+# check normality of the residuals
+hist(x = residuals(model5), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model6), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model5, which = 2)
+plot(x = model6, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat5 <- fitted.values(object = model5)
+plot(x = yhat5, y = modelmatrix5$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat6 <- fitted.values(object = model6)
+plot(x = yhat6, y = modelmatrix6$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model5, which = 1)
+plot(x = model6, which = 1)
+
+# check homogeneity of variance
+plot(x = model5, which = 3)
+plot(x = model6, which = 3)
+
+# check for multicollinearity GVIF = square root of the VIF, if > 5 =>
+# multicollinearity Add intercept to model for VIF computation.
+gvif5 <- vif(model5)
+print(gvif5)
+
+gvif6 <- vif(model6)
+print(gvif6)
+```
+Interpretation of the results
+```{r summaryC}
+summary(model5)
+summary(model6)
+```
+95% confidence intervals for the regression coefficients.
+```{r confint5}
+confint5 <- confint(model5)
+print(confint5)
+```
+```{r confint6}
+confint6 <- confint(model6)
+print(confint6)
+```
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+```{r effectpctiqrC}
+#model5
+iqr_aav<-IQR(modelmatrix5$no2aav,na.rm=TRUE)
+print(iqr_aav)
+estimate5<-(summary(model5)$coefficients[,1])*iqr_aav*100
+lb_confint5<-confint5[,1]*iqr_aav*100
+ub_confint5<-confint5[,2]*iqr_aav*100
+results5_iqr<-data.frame(estimate_pct=estimate5,
+                           lb_CI=lb_confint5,
+                           ub_CI=ub_confint5)
+print(results5_iqr)
+
+#model6
+estimate6<-(summary(model6)$coefficients[,1])*iqr_aav*100
+lb_confint6<-confint6[,1]*iqr_aav*100
+ub_confint6<-confint6[,2]*iqr_aav*100
+results6_iqr<-data.frame(estimate_pct=estimate6,
+                           lb_CI=lb_confint6,
+                           ub_CI=ub_confint6)
+print(results6_iqr)
+```
+## Include urbanicity as additive effect modifier
+```{r runmodelsD}
+modelmatrix7$sex <- as.factor(modelmatrix7$sex)
+modelmatrix7$ethnicity <- as.factor(modelmatrix7$ethnicity)
+modelmatrix7$cold <- as.factor(modelmatrix7$cold)
+modelmatrix7$atopyparents<- as.factor(modelmatrix7$atopyparents)
+modelmatrix7$eduparents<- as.factor(modelmatrix7$eduparents)
+modelmatrix7$eduparticipant<- as.factor(modelmatrix7$eduparticipant)
+modelmatrix7$activesmoking<- as.factor(modelmatrix7$activesmoking)
+modelmatrix7$shs<- as.factor(modelmatrix7$shs)
+modelmatrix7$mould<- as.factor(modelmatrix7$mould)
+modelmatrix7$pets<- as.factor(modelmatrix7$pets)
+modelmatrix7$gascook<- as.factor(modelmatrix7$gascook)
+set.seed(123)
+model7 <- lm(fev1 ~ no2aav + age + sex + height + ethnicity + cold +
+               atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook + urbanicity, data = modelmatrix7)
+
+modelmatrix8$sex <- as.factor(modelmatrix8$sex)
+modelmatrix8$ethnicity <- as.factor(modelmatrix8$ethnicity)
+modelmatrix8$cold <- as.factor(modelmatrix8$cold)
+modelmatrix8$atopyparents<- as.factor(modelmatrix8$atopyparents)
+modelmatrix8$eduparents<- as.factor(modelmatrix8$eduparents)
+modelmatrix8$eduparticipant<- as.factor(modelmatrix8$eduparticipant)
+modelmatrix8$activesmoking<- as.factor(modelmatrix8$activesmoking)
+modelmatrix8$shs<- as.factor(modelmatrix8$shs)
+modelmatrix8$mould<- as.factor(modelmatrix8$mould)
+modelmatrix8$pets<- as.factor(modelmatrix8$pets)
+modelmatrix8$gascook<- as.factor(modelmatrix8$gascook)
+set.seed(123)
+model8 <- lm(fvc ~ no2aav + age + sex + height + ethnicity + cold +
+               atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook + urbanicity, data = modelmatrix8)
+```
+
+```{r modeldiagnosticsD}
+# check normality of the residuals
+hist(x = residuals(model7), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model8), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model7, which = 2)
+plot(x = model8, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat7 <- fitted.values(object = model7)
+plot(x = yhat7, y = modelmatrix7$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat8 <- fitted.values(object = model8)
+plot(x = yhat8, y = modelmatrix8$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model7, which = 1)
+plot(x = model8, which = 1)
+
+# check homogeneity of variance
+plot(x = model7, which = 3)
+plot(x = model8, which = 3)
+
+# check for multicollinearity GVIF = square root of the VIF, if > 5 =>
+# multicollinearity Add intercept to model for VIF computation.
+gvif7 <- vif(model7)
+print(gvif7)
+
+gvif8 <- vif(model8)
+print(gvif8)
+```
+Interpretation of the results
+```{r summaryD}
+summary(model7)
+summary(model8)
+```
+95% confidence intervals for the regression coefficients.
+```{r confint7}
+confint7 <- confint(model7)
+print(confint7)
+```
+```{r confint8}
+confint8 <- confint(model8)
+print(confint8)
+```
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+```{r effectpctiqrD}
+#model7
+iqr_aav<-IQR(modelmatrix7$no2aav,na.rm=TRUE)
+print(iqr_aav)
+estimate7<-(summary(model7)$coefficients[,1])*iqr_aav*100
+lb_confint7<-confint7[,1]*iqr_aav*100
+ub_confint7<-confint7[,2]*iqr_aav*100
+results7_iqr<-data.frame(estimate_pct=estimate7,
+                           lb_CI=lb_confint7,
+                           ub_CI=ub_confint7)
+print(results7_iqr)
+
+#model8
+estimate8<-(summary(model8)$coefficients[,1])*iqr_aav*100
+lb_confint8<-confint8[,1]*iqr_aav*100
+ub_confint8<-confint8[,2]*iqr_aav*100
+results8_iqr<-data.frame(estimate_pct=estimate8,
+                           lb_CI=lb_confint8,
+                           ub_CI=ub_confint8)
+print(results8_iqr)
+```
+## Include urbanicity as multiplicative effect modifier
+```{r runmodelsE}
+set.seed(123)
+model7b <- lm(fev1 ~ no2aav*urbanicity + age + sex + height + ethnicity + cold +
+               atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook, data = modelmatrix7)
+
+set.seed(123)
+model8b <- lm(fvc ~ no2aav*urbanicity + age + sex + height + ethnicity + cold +
+               atopyparents + eduparents + eduparticipant + activesmoking + shs + mould + pets + gascook, data = modelmatrix8)
+```
+
+```{r modeldiagnosticsE}
+# check normality of the residuals
+hist(x = residuals(model7b), xlab = "Value of residual", main = "", breaks = 20)
+hist(x = residuals(model8b), xlab = "Value of residual", main = "", breaks = 20)
+
+plot(x = model7b, which = 2)
+plot(x = model8b, which = 2)
+
+# check linearity of the relationship between predicted and observed values
+yhat7b <- fitted.values(object = model7b)
+plot(x = yhat7b, y = modelmatrix7$fev1, xlab = "Fitted Values", ylab = "Observed Values")
+
+yhat8b <- fitted.values(object = model8b)
+plot(x = yhat8b, y = modelmatrix8$fvc, xlab = "Fitted Values", ylab = "Observed Values")
+
+plot(x = model7b, which = 1)
+plot(x = model8b, which = 1)
+
+# check homogeneity of variance
+plot(x = model7b, which = 3)
+plot(x = model8b, which = 3)
+
+# check for multicollinearity GVIF = square root of the VIF, if > 5 =>
+# multicollinearity Add intercept to model for VIF computation.
+gvif7b <- vif(model7b)
+print(gvif7b)
+
+gvif8b <- vif(model8b)
+print(gvif8b)
+```
+Interpretation of the results
+```{r summaryE}
+summary(model7b)
+summary(model8b)
+```
+95% confidence intervals for the regression coefficients.
+```{r confint7b}
+confint7b <- confint(model7b)
+print(confint7b)
+```
+```{r confint8b}
+confint8b <- confint(model8b)
+print(confint8b)
+```
+Convert to % difference in FEV1 or FVC for an IQR increase in exposure.
+```{r effectpctiqrE}
+#model7b
+iqr_aav<-IQR(modelmatrix7$no2aav,na.rm=TRUE)
+print(iqr_aav)
+estimate7b<-(summary(model7b)$coefficients[,1])*iqr_aav*100
+lb_confint7b<-confint7b[,1]*iqr_aav*100
+ub_confint7b<-confint7b[,2]*iqr_aav*100
+results7b_iqr<-data.frame(estimate_pct=estimate7b,
+                           lb_CI=lb_confint7b,
+                           ub_CI=ub_confint7b)
+print(results7b_iqr)
+
+#model8b
+estimate8b<-(summary(model8b)$coefficients[,1])*iqr_aav*100
+lb_confint8b<-confint8b[,1]*iqr_aav*100
+ub_confint8b<-confint8b[,2]*iqr_aav*100
+results8b_iqr<-data.frame(estimate_pct=estimate8b,
+                           lb_CI=lb_confint8b,
+                           ub_CI=ub_confint8b)
+print(results8b_iqr)
+```
+## Save the results
+```{r saveresults}
+write.table(summary(model1cr)$coefficients, 
+            file = "../results/summary_model1cr.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results1cr_iqr, 
+            file = "../results/results_iqr_model1cr.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model2cr)$coefficients, 
+            file = "../results/summary_model2cr.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results2cr_iqr, 
+            file = "../results/results_iqr_model2cr.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model1)$coefficients, 
+            file = "../results/summary_model1.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results1_iqr, 
+            file = "../results/results_iqr_model1.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model2)$coefficients, 
+            file = "../results/summary_model2.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results2_iqr, 
+            file = "../results/results_iqr_model2.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model3)$coefficients, 
+            file = "../results/summary_model3.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results3_iqr, 
+            file = "../results/results_iqr_model3.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model4)$coefficients, 
+            file = "../results/summary_model4.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results4_iqr, 
+            file = "../results/results_iqr_model4.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model5)$coefficients, 
+            file = "../results/summary_model5.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results1cr_iqr, 
+            file = "../results/results_iqr_model5.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model6)$coefficients, 
+            file = "../results/summary_model6.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results6_iqr, 
+            file = "../results/results_iqr_model6.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model7)$coefficients, 
+            file = "../results/summary_model7.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results7_iqr, 
+            file = "../results/results_iqr_model7.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(summary(model8)$coefficients, 
+            file = "../results/summary_model8.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+write.table(results8_iqr, 
+            file = "../results/results_iqr_model8.csv",
+            sep = ";",            #use ";" as delimiter
+            dec = ".",            #use "." as decimal point
+            na = "",              #replace NA with empty string
+            row.names = TRUE,
+            col.names = NA)
+
+```
